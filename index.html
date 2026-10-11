@@ -1,0 +1,1296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Math Motion</title>
+<style>html,body{margin:0}</style>
+</head>
+<body>
+
+<style>
+/* Layout: big dark stage with a playback bar on the left, one settings panel on the right. Single dark theme by choice, to match the reference videos. */
+:root {
+  --bg: #05060a;
+  --panel: #0b0d14;
+  --line: #1c2030;
+  --line2: #2a3047;
+  --fg: #e8ecf5;
+  --muted: #8d96b0;
+  --accent: #2f86e8;
+  --accent-ink: #03101f;
+  --bad: #ff7a7a;
+  --font-ui: 'Manrope', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); padding-inline: 16px; padding-block: 20px 40px; }
+button, input { font-family: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+header { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.layout { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.main { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.stage { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: #000; margin: 0 auto; max-width: 100%; }
+.stage.wide { width: 100%; aspect-ratio: 16 / 9; }
+.stage.tall { width: min(100%, calc(74vh * 9 / 16)); aspect-ratio: 9 / 16; }
+.stage.pen { cursor: crosshair; }
+.stage.pen canvas { touch-action: none; }
+canvas { display: block; width: 100%; height: 100%; }
+.bar { display: flex; align-items: center; gap: 14px; padding: 8px 16px 8px 8px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.play { width: 44px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--line2); background: transparent; color: var(--fg); }
+.play:hover { border-color: var(--accent); }
+.scrub { flex: 1; min-width: 0; height: 44px; margin: 0; accent-color: var(--accent); }
+.time { font-family: var(--font-mono); font-size: 13px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+aside { flex: 1 1 340px; max-width: 440px; min-width: 300px; display: flex; flex-direction: column; gap: 24px; padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); }
+.sec { display: flex; flex-direction: column; gap: 12px; }
+.lbl { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+.row { display: flex; align-items: center; gap: 10px; }
+.dot { width: 12px; height: 12px; flex-shrink: 0; border-radius: 50%; }
+.txt { flex: 1; min-width: 0; height: 44px; padding: 0 14px; border: 1px solid var(--line2); border-radius: 10px; background: var(--bg); color: var(--fg); font-family: var(--font-mono); font-size: 15px; }
+.txt[aria-invalid="true"] { border-color: var(--bad); }
+.icon { width: 44px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 10px; background: transparent; color: var(--muted); }
+.icon:hover:not(:disabled) { color: var(--fg); }
+.icon:disabled { opacity: 0.35; cursor: default; }
+.err { margin: 0; font-size: 13px; color: var(--bad); padding-left: 22px; }
+.ghost { height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px dashed var(--line2); border-radius: 10px; background: transparent; color: #b7bfd6; font-size: 15px; }
+.ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--fg); }
+.ghost:disabled { opacity: 0.4; cursor: default; }
+.solid { height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line2); border-radius: 10px; background: transparent; color: #b7bfd6; font-size: 15px; }
+.solid:hover:not(:disabled) { border-color: var(--accent); color: var(--fg); }
+.solid:disabled { opacity: 0.4; cursor: default; }
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.pair label { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
+.num { flex: 1; min-width: 0; width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--line2); border-radius: 10px; background: var(--bg); color: var(--fg); font-family: var(--font-mono); font-size: 15px; }
+.slider { display: flex; flex-direction: column; gap: 4px; }
+.slider .head { display: flex; justify-content: space-between; align-items: baseline; }
+.slider .val { font-family: var(--font-mono); font-size: 14px; }
+.slider input { width: 100%; height: 36px; margin: 0; accent-color: var(--accent); }
+.seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.seg button { height: 44px; border: 1px solid var(--line2); border-radius: 10px; background: transparent; color: #b7bfd6; font-size: 15px; }
+.seg button[aria-pressed="true"] { border-color: var(--accent); background: rgba(47, 134, 232, 0.14); color: var(--fg); font-weight: 600; }
+.dl { height: 52px; display: flex; align-items: center; justify-content: center; gap: 10px; border: 0; border-radius: 12px; background: var(--accent); color: var(--accent-ink); font-size: 16px; font-weight: 700; }
+.dl:disabled { opacity: 0.55; cursor: default; }
+.prog { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.prog i { display: block; height: 100%; width: 0; background: var(--accent); }
+.status { margin: 0; min-height: 20px; font-size: 13px; color: var(--muted); line-height: 1.4; }
+.hint { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+.hint code { font-family: var(--font-mono); color: var(--fg); }
+.shape-row { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.shape-row .name { flex: 1; font-size: 15px; }
+.trow { display: flex; flex-direction: column; gap: 6px; }
+.thead { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.thead .tn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thead .tt { font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.track { position: relative; height: 36px; border: 1px solid var(--line2); border-radius: 8px; background: var(--bg); touch-action: none; }
+.tbar { position: absolute; top: 3px; bottom: 3px; border-radius: 6px; border: 1px solid; cursor: grab; touch-action: none; }
+.th { position: absolute; top: -2px; bottom: -2px; width: 20px; border: 0; padding: 0; background: transparent; cursor: ew-resize; touch-action: none; }
+.th::after { content: ''; position: absolute; top: 9px; bottom: 9px; left: 8px; width: 3px; border-radius: 2px; background: #fff; opacity: 0.85; }
+.th.l { left: -6px; }
+.th.r { right: -6px; }
+.phead { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: #fff; opacity: 0.75; pointer-events: none; border-radius: 1px; }
+.small { height: 36px; padding: 0 12px; font-size: 13px; }
+.main.full { position: fixed; inset: 0; z-index: 100; max-width: none; background: var(--bg); padding: 12px 16px; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); justify-content: center; align-items: center; gap: 10px; overflow: hidden; }
+.main.full .stage.wide { width: min(100%, calc((100vh - 110px) * 16 / 9)); }
+.main.full .stage.tall { width: min(100%, calc((100vh - 110px) * 9 / 16)); }
+@supports (height: 100dvh) {
+  .main.full .stage.wide { width: min(100%, calc((100dvh - 110px) * 16 / 9)); }
+  .main.full .stage.tall { width: min(100%, calc((100dvh - 110px) * 9 / 16)); }
+}
+.main.full .bar { width: min(100%, 900px); }
+.main.full canvas { touch-action: none; }
+.stage.hand { cursor: grab; }
+.stage.hand.grabbing { cursor: grabbing; }
+.penbar { display: none; }
+.backfs { display: none; }
+.main.full .backfs { display: flex; align-items: center; justify-content: center; position: fixed; top: calc(10px + env(safe-area-inset-top, 0px)); left: 10px; z-index: 6; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line2); border-radius: 12px; background: rgba(11, 13, 20, 0.88); color: var(--fg); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.backfs:hover { border-color: var(--accent); }
+header .icon { color: var(--fg); margin-left: -8px; }
+@media (max-width: 700px) { .main.full.fullpen .penbar { top: calc(62px + env(safe-area-inset-top, 0px)) !important; } }
+/* full-screen drawing: the canvas fills the whole screen, controls float on top */
+.main.full.fullpen .stage.wide, .main.full.fullpen .stage.tall { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; aspect-ratio: auto; margin: 0; border: 0; border-radius: 0; }
+.main.full.fullpen .bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(10px + env(safe-area-inset-bottom, 0px)); width: min(calc(100% - 24px), 900px); background: rgba(11, 13, 20, 0.88); z-index: 5; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.main.full.fullpen .penbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px; position: fixed; top: calc(10px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100% - 20px); padding: 6px; border: 1px solid var(--line2); border-radius: 14px; background: rgba(11, 13, 20, 0.88); z-index: 5; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.tbtn { min-width: 40px; height: 40px; padding: 0 10px; display: flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--fg); font-size: 14px; font-weight: 600; }
+.tbtn:hover:not(:disabled) { border-color: var(--line2); }
+.tbtn:disabled { opacity: 0.35; cursor: default; }
+.tbtn[aria-pressed="true"] { border-color: var(--accent); background: rgba(47, 134, 232, 0.18); }
+.zlabel { min-width: 46px; text-align: center; font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+.penbar input[type="range"] { width: 90px; height: 40px; margin: 0; accent-color: var(--accent); }
+.penbar .sepv { width: 1px; height: 24px; background: var(--line2); margin: 0 4px; }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<div class="wrap">
+  <header>
+    <button class="icon" id="backH" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>
+    <svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true"><circle cx="14" cy="14" r="11" stroke="#2f86e8" stroke-width="2"/><circle cx="22.5" cy="8" r="2.6" fill="#ffffff"/></svg>
+    Math Motion
+  </header>
+
+  <div class="layout">
+    <div class="main">
+      <button class="backfs" id="backFS" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 5l-7 7 7 7"/></svg></button>
+      <div class="stage wide" id="stage"><canvas id="cv" aria-label="Animated graph"></canvas></div>
+      <div class="bar">
+        <button class="play" id="play" aria-label="Pause"></button>
+        <label for="scrub" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Animation position</label>
+        <input class="scrub" id="scrub" type="range" min="0" max="1000" value="0">
+        <span class="time" id="time">0:00 / 0:08</span>
+        <button class="play" id="rv" aria-label="Reset view" hidden></button>
+        <button class="play" id="fs" aria-label="Full screen"></button>
+      </div>
+      <div class="penbar" id="penbar">
+        <button class="tbtn" id="pUndo" aria-label="Undo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+        <button class="tbtn" id="pClear" aria-label="Clear all"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+        <span class="sepv"></span>
+        <button class="tbtn" id="pOut" aria-label="Zoom out"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+        <span class="zlabel" id="pZoom">×1</span>
+        <button class="tbtn" id="pIn" aria-label="Zoom in"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button class="tbtn" id="pHand" aria-pressed="false" aria-label="Move view (hand tool)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg></button>
+        <span class="sepv"></span>
+        <button class="tbtn" id="pSel" aria-pressed="false" aria-label="Select and move"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M5 3l14 8-6 2-2 6z"/></svg></button><input type="color" class="cLine" aria-label="Line colour" style="width:34px;height:34px;border:1px solid var(--line2);border-radius:8px;background:transparent;padding:1px"><input type="color" class="cDot" aria-label="Dot colour" style="width:34px;height:34px;border:1px solid var(--line2);border-radius:8px;background:transparent;padding:1px"><button class="tbtn" id="pDel" aria-label="Delete selected"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button><span class="sepv"></span><span class="zlabel" style="min-width:0">Pen</span><input id="pPen" type="range" min="0.5" max="14" step="0.1" value="3.2" aria-label="Pen size">
+        <span class="zlabel" style="min-width:0">Stab</span><input id="pStab" type="range" min="0" max="100" step="5" value="60" aria-label="Stabilizer and shape assist" title="Stabilizer: smooths the stroke and snaps it to a line, circle, ellipse, rectangle or triangle">
+      </div>
+    </div>
+
+    <aside>
+      <div class="sec">
+        <h2 class="lbl">Input</h2>
+        <div class="seg" id="mode">
+          <button data-v="eq" aria-pressed="true">Equations</button>
+          <button data-v="draw" aria-pressed="false">Draw by hand</button>
+        </div>
+      </div>
+
+      <div id="eqSec" style="display:flex;flex-direction:column;gap:24px">
+        <div class="sec">
+          <h2 class="lbl">Equations</h2>
+          <div id="eqs" style="display:flex;flex-direction:column;gap:12px"></div>
+          <button class="ghost" id="add">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Add equation
+          </button>
+          <p class="hint">Write them like <code>x^2</code>, <code>sin(x)</code>, <code>1 + 1/x^2</code> or <code>2x + 3</code>.</p>
+        </div>
+        <div class="sec">
+          <h2 class="lbl">x range</h2>
+          <div class="pair">
+            <label>from <input class="num" id="xmin" type="number" step="0.5" value="-3.5"></label>
+            <label>to <input class="num" id="xmax" type="number" step="0.5" value="2"></label>
+          </div>
+        </div>
+      </div>
+
+      <div id="drawSec" hidden style="display:flex;flex-direction:column;gap:24px">
+        <div class="sec">
+          <h2 class="lbl">Your shapes</h2>
+          <div id="shapes" style="display:flex;flex-direction:column;gap:4px"></div>
+          <div class="pair">
+            <button class="solid" id="undo">Undo</button>
+            <button class="solid" id="clear">Clear all</button>
+          </div>
+          <p class="hint">Draw on the black area. The stabilizer smooths your stroke and snaps it to a <b>line, circle, ellipse, rectangle, triangle or arc</b> when it looks like one: the higher it is, the more it helps. Set it to 0 for plain freehand. Pinch or scroll to zoom: lines grow with the zoom like an image and never get pixelated, and strokes you draw while zoomed in come out finer, so you can add detail. Use the full-screen button for a bigger canvas.</p>
+        </div>
+        <div class="sec">
+          <div class="seg" id="tools" style="grid-template-columns:repeat(3,minmax(0,1fr))"><button data-v="pen" aria-pressed="true">Pen</button><button data-v="select" aria-pressed="false">Select</button><button data-v="hand" aria-pressed="false">Move view</button></div>
+          <div id="selSec" hidden style="display:flex;flex-direction:column;gap:8px"><div class="pair"><button class="solid" id="sSmall">Smaller</button><button class="solid" id="sBig">Bigger</button><button class="solid" id="sRot">Rotate</button><button class="solid" id="sDup">Duplicate</button></div><button class="solid" id="sDel">Delete selected</button></div>
+          <div class="pair"><label>Line <input type="color" class="cLine" style="width:100%;height:44px;border:1px solid var(--line2);border-radius:10px;background:var(--bg);padding:2px"></label><label>Dot <input type="color" class="cDot" style="width:100%;height:44px;border:1px solid var(--line2);border-radius:10px;background:var(--bg);padding:2px"></label></div>
+          <div class="slider"><div class="head"><label class="lbl" for="dsz">Dot size</label><span class="val" id="dszv">1.0×</span></div><input id="dsz" type="range" min="0.4" max="3" step="0.1" value="1"></div>
+          <div class="slider"><div class="head"><label class="lbl" for="cam">Camera move</label></div><select id="cam" class="num"><option value="none">Still camera</option><option value="zin">Slow zoom in</option><option value="zout">Zoom out reveal</option><option value="follow">Follow the dot</option><option value="drift">Cinematic drift</option></select></div>
+          <div class="pair"><label>Back <input type="color" id="bgc" value="#000000" style="width:100%;height:44px;border:1px solid var(--line2);border-radius:10px;background:var(--bg);padding:2px"></label><label><input type="checkbox" id="gridc" checked> Grid</label></div>
+          <div class="slider">
+            <div class="head"><label class="lbl" for="zoomD">Zoom</label><span class="val" id="zoomDv">×1</span></div>
+            <input id="zoomD" type="range" min="-1.5" max="2.4" step="0.01" value="0">
+          </div>
+          <div class="slider">
+            <div class="head"><label class="lbl" for="pen">Pen size</label><span class="val" id="penv">3.2 px</span></div>
+            <input id="pen" type="range" min="0.5" max="14" step="0.1" value="3.2">
+          </div>
+          <div class="slider">
+            <div class="head"><label class="lbl" for="stab">Stabilizer &amp; shape assist</label><span class="val" id="stabv">60%</span></div>
+            <input id="stab" type="range" min="0" max="100" step="5" value="60">
+          </div>
+        </div>
+      </div>
+
+      <div class="sec" id="timeSec">
+        <div class="row" style="justify-content:space-between">
+          <h2 class="lbl">Timing</h2>
+          <button class="solid small" id="resetT">Reset timing</button>
+        </div>
+        <div id="timing" style="display:flex;flex-direction:column;gap:14px"></div>
+        <p class="hint">Drag a bar to move it. Drag its ends to change when that dot starts and finishes. The white line is the playhead.</p>
+      </div>
+
+      <div class="sec">
+        <div class="slider" id="viewSlider">
+          <div class="head"><label class="lbl" for="zoom">View size</label><span class="val" id="zoomv">6 units</span></div>
+          <input id="zoom" type="range" min="1" max="60" step="0.5" value="6">
+        </div>
+        <div class="slider">
+          <div class="head"><label class="lbl" for="dur">Video length</label><span class="val" id="durv">8 s</span></div>
+          <input id="dur" type="range" min="3" max="60" step="1" value="8">
+        </div>
+      </div>
+
+      <div class="sec">
+        <h2 class="lbl">Shape</h2>
+        <div class="seg" id="shape">
+          <button data-v="wide" aria-pressed="true">Wide 16:9</button>
+          <button data-v="tall" aria-pressed="false">Vertical 9:16</button>
+        </div>
+        <h2 class="lbl">Quality</h2>
+        <div class="seg" id="quality">
+          <button data-v="720" aria-pressed="false">720p</button>
+          <button data-v="1080" aria-pressed="true">1080p HD</button>
+        </div>
+      </div>
+
+      <div class="sec">
+        <button class="dl" id="dl">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>
+          <span id="dltxt">Download MP4</span>
+        </button>
+        <div class="prog" id="progwrap" hidden><i id="prog"></i></div>
+        <p class="status" id="status" role="status"></p>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
+<script>
+var FUNCS = {
+  sin: Math.sin, cos: Math.cos, tan: Math.tan, asin: Math.asin, acos: Math.acos, atan: Math.atan,
+  sinh: Math.sinh, cosh: Math.cosh, tanh: Math.tanh, sqrt: Math.sqrt, cbrt: Math.cbrt, abs: Math.abs,
+  ln: Math.log, log: Math.log10, exp: Math.exp, floor: Math.floor, ceil: Math.ceil, sign: Math.sign,
+  round: Math.round, min: Math.min, max: Math.max, pow: Math.pow, atan2: Math.atan2
+};
+var CONSTS = { pi: Math.PI, e: Math.E };
+var FNAMES = Object.keys(FUNCS).sort(function (a, b) { return b.length - a.length; });
+
+function tokenize(s) {
+  var toks = [], i = 0, m;
+  while (i < s.length) {
+    var ch = s[i];
+    if (/\s/.test(ch)) { i++; continue; }
+    if (/[0-9.]/.test(ch)) {
+      m = /^(\d+\.?\d*|\.\d+)(e[+-]?\d+)?/i.exec(s.slice(i));
+      if (!m) throw new Error('number');
+      toks.push({ t: 'n', v: parseFloat(m[0]) }); i += m[0].length; continue;
+    }
+    if (/[a-z]/i.test(ch)) {
+      var word = /^[a-z]+/i.exec(s.slice(i))[0].toLowerCase();
+      i += word.length;
+      while (word.length) {
+        var hit = null;
+        for (var k = 0; k < FNAMES.length; k++) { if (word.indexOf(FNAMES[k]) === 0) { hit = FNAMES[k]; break; } }
+        if (!hit && word.indexOf('pi') === 0) hit = 'pi';
+        if (!hit) hit = word[0];
+        if (hit !== 'x' && hit !== 'e' && hit !== 'pi' && !FUNCS[hit]) throw new Error('unknown ' + hit);
+        toks.push({ t: 'id', v: hit });
+        word = word.slice(hit.length);
+      }
+      continue;
+    }
+    if ('+-*/^(),'.indexOf(ch) >= 0) { toks.push({ t: ch }); i++; continue; }
+    throw new Error('char ' + ch);
+  }
+  return toks;
+}
+
+function compileExpr(src) {
+  var s = String(src).trim().replace(/^\s*(y|f\(x\))\s*=\s*/i, '');
+  if (!s) throw new Error('empty');
+  s = s.replace(/²/g, '^2').replace(/³/g, '^3').replace(/π/g, 'pi').replace(/[×·]/g, '*')
+       .replace(/÷/g, '/').replace(/[−–]/g, '-').replace(/√/g, 'sqrt');
+  var toks = tokenize(s), pos = 0;
+  function peek() { return toks[pos]; }
+  function next() { return toks[pos++]; }
+  function startsFactor(t) { return t && (t.t === 'n' || t.t === 'id' || t.t === '('); }
+
+  function expr() {
+    var l = term();
+    while (peek() && (peek().t === '+' || peek().t === '-')) {
+      var op = next().t, r = term(), a = l;
+      l = op === '+' ? (function (a, r) { return function (x) { return a(x) + r(x); }; })(a, r)
+                     : (function (a, r) { return function (x) { return a(x) - r(x); }; })(a, r);
+    }
+    return l;
+  }
+  function term() {
+    var l = unary();
+    for (;;) {
+      var t = peek();
+      if (t && (t.t === '*' || t.t === '/')) {
+        next(); var r = unary(), a = l;
+        l = t.t === '*' ? (function (a, r) { return function (x) { return a(x) * r(x); }; })(a, r)
+                        : (function (a, r) { return function (x) { return a(x) / r(x); }; })(a, r);
+      } else if (startsFactor(t)) {
+        var r2 = unary(), a2 = l;
+        l = (function (a, r) { return function (x) { return a(x) * r(x); }; })(a2, r2);
+      } else break;
+    }
+    return l;
+  }
+  function unary() {
+    var t = peek();
+    if (t && t.t === '-') { next(); var u = unary(); return function (x) { return -u(x); }; }
+    if (t && t.t === '+') { next(); return unary(); }
+    return power();
+  }
+  function power() {
+    var b = atom();
+    if (peek() && peek().t === '^') {
+      next(); var e = unary();
+      return function (x) { return Math.pow(b(x), e(x)); };
+    }
+    return b;
+  }
+  function atom() {
+    var t = next();
+    if (!t) throw new Error('unexpected end');
+    if (t.t === 'n') { var v = t.v; return function () { return v; }; }
+    if (t.t === '(') {
+      var inner = expr();
+      if (!peek() || next().t !== ')') throw new Error('missing )');
+      return inner;
+    }
+    if (t.t === 'id') {
+      if (t.v === 'x') return function (x) { return x; };
+      if (CONSTS[t.v] !== undefined) { var c = CONSTS[t.v]; return function () { return c; }; }
+      var fn = FUNCS[t.v], args = [];
+      if (peek() && peek().t === '(') {
+        next();
+        if (peek() && peek().t === ')') throw new Error('empty args');
+        args.push(expr());
+        while (peek() && peek().t === ',') { next(); args.push(expr()); }
+        if (!peek() || next().t !== ')') throw new Error('missing )');
+      } else {
+        args.push(power());
+      }
+      if (args.length === 1) { var a0 = args[0]; return function (x) { return fn(a0(x)); }; }
+      return function (x) { return fn.apply(null, args.map(function (g) { return g(x); })); };
+    }
+    throw new Error('unexpected ' + t.t);
+  }
+
+  var f = expr();
+  if (pos < toks.length) throw new Error('unexpected ' + toks[pos].t);
+  // must produce a number somewhere sensible
+  var ok = false;
+  for (var q = -3; q <= 3; q += 0.37) { var y = f(q); if (typeof y === 'number') { ok = true; break; } }
+  if (!ok) throw new Error('not a number');
+  return f;
+}
+
+
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var cv = $('cv'), ctx = cv.getContext('2d'), stage = $('stage');
+  var PALETTE = ['#2f86e8', '#d887c8', '#5fd0a0', '#f0a64b', '#a28cf0'];
+  var S = { mode: 'eq', eqs: [], shapes: [], xmin: -3.5, xmax: 2, zoom: 6, dur: 8, shape: 'wide', quality: 1080, stab: 60, panX: 0, panY: 0, pen: 3.2, tool: 'pen', cam: 'none', bg: '#000000', grid: true, dotSize: 1, curLine: null, curDot: null, sel: null };
+  var NS = 2400, NSH = 800, ZMIN = 0.02, ZMAX = 200, MAXSHAPES = 60;
+  var p = 0, playing = true, last = performance.now(), nextId = 1, camX = [], camY = [], restartTimer = null, exporting = false, live = null;
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var ICON_PAUSE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>';
+  var ICON_PLAY = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>';
+  var ICON_REPLAY = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 3-6.2"/><path d="M4 4v5h5"/></svg>';
+  var ICON_X = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+  function ss(t) { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); }
+  function hexA(h, a) { var n = parseInt(h.slice(1), 16); return 'rgba(' + (n >> 16) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')'; }
+  function shadeA(h, k, a) { var n = parseInt(h.slice(1), 16); return 'rgba(' + Math.round((n >> 16) * k) + ',' + Math.round(((n >> 8) & 255) * k) + ',' + Math.round((n & 255) * k) + ',' + a + ')'; }
+  function cleanLabel(t) { return String(t).trim().replace(/^\s*(y|f\(x\))\s*=\s*/i, ''); }
+
+  /* ---------- equations ---------- */
+  function sampleEq(eq) {
+    if (!eq.fn) { eq.xs = eq.ys = null; return; }
+    var xs = new Float64Array(NS + 1), ys = new Float64Array(NS + 1);
+    for (var i = 0; i <= NS; i++) {
+      var x = S.xmin + (S.xmax - S.xmin) * i / NS, y = eq.fn(x);
+      xs[i] = x; ys[i] = isFinite(y) ? y : NaN;
+    }
+    eq.xs = xs; eq.ys = ys;
+  }
+  function sampleAll() { S.eqs.forEach(sampleEq); }
+  function addEq(text) {
+    var used = S.eqs.map(function (e) { return e.color; });
+    var color = PALETTE.filter(function (c) { return used.indexOf(c) < 0; })[0] || PALETTE[0];
+    var eq = { id: nextId++, text: text, color: color, fn: null, err: '', xs: null, ys: null, f0: 0, f1: 1 };
+    parse(eq); S.eqs.push(eq);
+  }
+  function parse(eq) {
+    try { eq.fn = compileExpr(eq.text); eq.err = ''; }
+    catch (e) { eq.fn = null; eq.err = eq.text.trim() ? 'Cannot read this. Write y in terms of x, like x^2 or sin(x).' : 'Type an equation.'; }
+    sampleEq(eq);
+  }
+  function renderEqs() {
+    var box = $('eqs'); box.innerHTML = '';
+    S.eqs.forEach(function (eq, i) {
+      var wrap = document.createElement('div'); wrap.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+      var row = document.createElement('div'); row.className = 'row';
+      var dot = document.createElement('span'); dot.className = 'dot'; dot.style.background = eq.color;
+      var lab = document.createElement('label'); lab.htmlFor = 'eq' + eq.id; lab.textContent = 'Equation ' + (i + 1);
+      lab.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)';
+      var inp = document.createElement('input'); inp.className = 'txt'; inp.id = 'eq' + eq.id; inp.type = 'text';
+      inp.value = eq.text; inp.spellcheck = false; inp.autocomplete = 'off'; inp.setAttribute('aria-invalid', eq.fn ? 'false' : 'true');
+      var rm = document.createElement('button'); rm.className = 'icon'; rm.innerHTML = ICON_X; rm.setAttribute('aria-label', 'Remove equation ' + (i + 1));
+      rm.disabled = S.eqs.length <= 1;
+      var err = document.createElement('p'); err.className = 'err'; err.textContent = eq.err; err.hidden = !eq.err;
+      inp.addEventListener('input', function () {
+        eq.text = inp.value; parse(eq);
+        inp.setAttribute('aria-invalid', eq.fn ? 'false' : 'true');
+        err.textContent = eq.err; err.hidden = !eq.err;
+        renderTiming(); changed();
+      });
+      rm.addEventListener('click', function () { S.eqs.splice(i, 1); renderEqs(); changed(); });
+      row.appendChild(dot); row.appendChild(lab); row.appendChild(inp); row.appendChild(rm);
+      wrap.appendChild(row); wrap.appendChild(err); box.appendChild(wrap);
+    });
+    $('add').disabled = S.eqs.length >= PALETTE.length;
+    if (typeof renderTiming === 'function') renderTiming();
+  }
+
+  /* ---------- camera for equations: holds still, then glides when the dots near the edge ---------- */
+  function itemQ(it, q) { return Math.max(0, Math.min(1, (q - it.f0) / Math.max(1e-6, it.f1 - it.f0))); }
+  function buildCamera() {
+    var N = 600, asp = S.shape === 'tall' ? 9 / 16 : 16 / 9;
+    var viewW = S.zoom * Math.max(1, asp), viewH = S.zoom * Math.max(1, 1 / asp);
+    var eqs = S.eqs.filter(function (e) { return e.fn; });
+    var rawX = [], rawY = [], px = S.xmin, py = 0, i;
+    for (i = 0; i <= N; i++) {
+      var q = i / N, sx = 0, sn = 0, ax = 0, an = 0, lo = Infinity, hi = -Infinity;
+      eqs.forEach(function (eq) {
+        var x = S.xmin + (S.xmax - S.xmin) * itemQ(eq, q), y = eq.fn(x);
+        ax += x; an++;
+        if (q >= eq.f0 - 1e-9) { sx += x; sn++; if (isFinite(y) && Math.abs(y) < viewH) { lo = Math.min(lo, y); hi = Math.max(hi, y); } }
+      });
+      px = sn ? sx / sn : (an ? ax / an : S.xmin);
+      if (lo !== Infinity) py = (Math.min(lo, 0) + Math.max(hi, 0)) / 2;
+      rawX.push(px); rawY.push(py);
+    }
+    var cx = rawX[0] + 0.25 * viewW, cy = rawY[0], dzx = 0.2 * viewW, dzy = 0.22 * viewH;
+    camX = []; camY = [];
+    for (i = 0; i <= N; i++) {
+      var xd = rawX[i], tx = cx, ty = cy;
+      if (xd > cx + dzx) tx = xd - dzx; else if (xd < cx - dzx) tx = xd + dzx;
+      if (rawY[i] > cy + dzy) ty = rawY[i] - dzy; else if (rawY[i] < cy - dzy) ty = rawY[i] + dzy;
+      cx += 0.06 * (tx - cx); cy += 0.04 * (ty - cy);
+      camX.push(cx); camY.push(cy);
+    }
+  }
+  function camAt(arr, q) {
+    var N = arr.length - 1; if (N < 0) return 0;
+    var t = Math.max(0, Math.min(1, q)) * N, i = Math.floor(t), j = Math.min(N, i + 1);
+    return arr[i] + (arr[j] - arr[i]) * (t - i);
+  }
+
+  /* ---------- hand-drawn shapes: stabilizer + clean-up into line / circle / curve ---------- */
+  function plen(P) { var L = 0; for (var i = 1; i < P.length; i++) L += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); return L; }
+  function resample(P, N) {
+    var cum = [0], i; for (i = 1; i < P.length; i++) cum.push(cum[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+    var L = cum[cum.length - 1], out = [], j = 1;
+    for (var k = 0; k <= N; k++) {
+      var d = L * k / N; while (j < P.length - 1 && cum[j] < d) j++;
+      var seg = cum[j] - cum[j - 1], t = seg > 0 ? (d - cum[j - 1]) / seg : 0;
+      out.push([P[j - 1][0] + (P[j][0] - P[j - 1][0]) * t, P[j - 1][1] + (P[j][1] - P[j - 1][1]) * t]);
+    }
+    return out;
+  }
+  function chaikin(P, rounds) {
+    for (var r = 0; r < rounds; r++) {
+      var Q = [P[0]];
+      for (var i = 0; i < P.length - 1; i++) {
+        var a = P[i], b = P[i + 1];
+        Q.push([0.75 * a[0] + 0.25 * b[0], 0.75 * a[1] + 0.25 * b[1]], [0.25 * a[0] + 0.75 * b[0], 0.25 * a[1] + 0.75 * b[1]]);
+      }
+      Q.push(P[P.length - 1]); P = Q;
+    }
+    return P;
+  }
+  function fitCircle(P) {
+    var n = P.length, mx = 0, my = 0, i;
+    for (i = 0; i < n; i++) { mx += P[i][0]; my += P[i][1]; } mx /= n; my /= n;
+    var Suu = 0, Suv = 0, Svv = 0, Suuu = 0, Svvv = 0, Suvv = 0, Svuu = 0;
+    for (i = 0; i < n; i++) {
+      var u = P[i][0] - mx, v = P[i][1] - my;
+      Suu += u * u; Suv += u * v; Svv += v * v; Suuu += u * u * u; Svvv += v * v * v; Suvv += u * v * v; Svuu += v * u * u;
+    }
+    var det = Suu * Svv - Suv * Suv; if (Math.abs(det) < 1e-12) return null;
+    var b1 = 0.5 * (Suuu + Suvv), b2 = 0.5 * (Svvv + Svuu);
+    var uc = (b1 * Svv - b2 * Suv) / det, vc = (Suu * b2 - Suv * b1) / det;
+    var r = Math.sqrt(uc * uc + vc * vc + (Suu + Svv) / n);
+    var cx = uc + mx, cy = vc + my, err = 0, sweep = 0, prev = Math.atan2(P[0][1] - cy, P[0][0] - cx);
+    for (i = 0; i < n; i++) {
+      err += Math.pow(Math.hypot(P[i][0] - cx, P[i][1] - cy) - r, 2);
+      var a = Math.atan2(P[i][1] - cy, P[i][0] - cx), d = a - prev;
+      while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+      sweep += d; prev = a;
+    }
+    return { cx: cx, cy: cy, r: r, rms: Math.sqrt(err / n) / r, sweep: sweep, a0: Math.atan2(P[0][1] - cy, P[0][0] - cx) };
+  }
+  function toArrays(P) {
+    var xs = new Float64Array(P.length), ys = new Float64Array(P.length);
+    for (var i = 0; i < P.length; i++) { xs[i] = P[i][0]; ys[i] = P[i][1]; }
+    return { xs: xs, ys: ys };
+  }
+  function fitEllipse(P) {
+    var n = P.length, mx = 0, my = 0, i;
+    for (i = 0; i < n; i++) { mx += P[i][0]; my += P[i][1]; } mx /= n; my /= n;
+    var sxx = 0, sxy = 0, syy = 0;
+    for (i = 0; i < n; i++) { var dx = P[i][0] - mx, dy = P[i][1] - my; sxx += dx * dx; sxy += dx * dy; syy += dy * dy; }
+    sxx /= n; sxy /= n; syy /= n;
+    var tr = sxx + syy, det = sxx * syy - sxy * sxy, disc = Math.sqrt(Math.max(0, tr * tr / 4 - det));
+    var l1 = tr / 2 + disc, l2 = tr / 2 - disc; if (l2 < 1e-18) return null;
+    var phi = 0.5 * Math.atan2(2 * sxy, sxx - syy), eu = [Math.cos(phi), Math.sin(phi)], ev = [-Math.sin(phi), Math.cos(phi)];
+    var a = Math.sqrt(2 * l1), b = Math.sqrt(2 * l2), rho = [], m = 0, U = [], V = [];
+    for (i = 0; i < n; i++) {
+      var u = (P[i][0] - mx) * eu[0] + (P[i][1] - my) * eu[1], v = (P[i][0] - mx) * ev[0] + (P[i][1] - my) * ev[1];
+      U.push(u); V.push(v); var r = Math.hypot(u / a, v / b); rho.push(r); m += r;
+    }
+    m /= n; if (m < 1e-9) return null;
+    var err = 0; for (i = 0; i < n; i++) err += Math.pow(rho[i] / m - 1, 2);
+    a *= m; b *= m;
+    var prev = Math.atan2(V[0] / b, U[0] / a), t0 = prev, sweep = 0;
+    for (i = 1; i < n; i++) {
+      var t = Math.atan2(V[i] / b, U[i] / a), d = t - prev;
+      while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+      sweep += d; prev = t;
+    }
+    return { cx: mx, cy: my, a: a, b: b, eu: eu, ev: ev, rms: Math.sqrt(err / n), t0: t0, dir: sweep >= 0 ? 1 : -1, sweep: sweep };
+  }
+  function rdp(P, a, b, eps, out) {
+    var best = -1, bd = eps, ax = P[a][0], ay = P[a][1], dx = P[b][0] - ax, dy = P[b][1] - ay, len = Math.hypot(dx, dy);
+    for (var i = a + 1; i < b; i++) {
+      var d = len > 1e-12 ? Math.abs(dx * (ay - P[i][1]) - (ax - P[i][0]) * dy) / len : Math.hypot(P[i][0] - ax, P[i][1] - ay);
+      if (d > bd) { bd = d; best = i; }
+    }
+    if (best < 0) out.push(b); else { rdp(P, a, best, eps, out); rdp(P, best, b, eps, out); }
+  }
+  function turnDeg(p, q, r) {
+    var ux = q[0] - p[0], uy = q[1] - p[1], vx = r[0] - q[0], vy = r[1] - q[1], lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy);
+    if (lu < 1e-12 || lv < 1e-12) return 0;
+    return Math.acos(Math.max(-1, Math.min(1, (ux * vx + uy * vy) / (lu * lv)))) * 180 / Math.PI;
+  }
+  // closed stroke -> corner points (3 or 4 corners = triangle / rectangle), or null
+  function cornersOf(P, L, tol) {
+    var n = P.length, far = 0, fd = 0, i;
+    for (i = 1; i < n; i++) { var d = Math.hypot(P[i][0] - P[0][0], P[i][1] - P[0][1]); if (d > fd) { fd = d; far = i; } }
+    if (far < 2 || far > n - 3) return null;
+    var idx = [0], eps = 0.02 * L * tol;
+    rdp(P, 0, far, eps, idx); rdp(P, far, n - 1, eps, idx);
+    var V = idx.map(function (k) { return P[k]; }); V.pop();
+    var again = true;
+    while (again && V.length > 3) {
+      again = false;
+      for (i = 0; i < V.length; i++) {
+        var pr = V[(i + V.length - 1) % V.length], cu = V[i], nx = V[(i + 1) % V.length];
+        if (turnDeg(pr, cu, nx) < 25 || Math.hypot(nx[0] - cu[0], nx[1] - cu[1]) < 0.07 * L) { V.splice(i, 1); again = true; break; }
+      }
+    }
+    if (V.length < 3 || V.length > 4) return null;
+    for (i = 0; i < V.length; i++) if (turnDeg(V[(i + V.length - 1) % V.length], V[i], V[(i + 1) % V.length]) < 25) return null;
+    return V;
+  }
+  function rotateNearest(V, pt) { // start the ring at the corner closest to where the stroke began
+    var bi = 0, bd = Infinity;
+    for (var i = 0; i < V.length; i++) { var d = Math.hypot(V[i][0] - pt[0], V[i][1] - pt[1]); if (d < bd) { bd = d; bi = i; } }
+    return V.slice(bi).concat(V.slice(0, bi));
+  }
+  function ringPts(V) { return resample(V.concat([V[0]]), NSH); }
+  function clean(raw, z) {
+    var zs = (z || S.zoom) / 6, tol = 0.5 + S.stab / 100;   // higher stabilizer = more forgiving
+    var L = plen(raw); if (L < 0.35 * zs) return null;
+    var P = resample(raw, 160), n = P.length;
+    // overshoot: a stroke that comes back to its start and keeps going is cut where it closes
+    var kb = -1, kd = Infinity, j;
+    for (j = Math.floor(n * 0.5); j < n; j++) { var dj = Math.hypot(P[j][0] - P[0][0], P[j][1] - P[0][1]); if (dj < kd) { kd = dj; kb = j; } }
+    if (kb > 0 && kb < n - 1 && kd < 0.06 * L) { P = resample(P.slice(0, kb + 1), 160); n = P.length; L = plen(P); }
+    var a = P[0], b = P[n - 1], chord = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    var maxDev = 0, i;
+    if (chord > 1e-6) {
+      for (i = 0; i < n; i++) {
+        var dev = Math.abs((b[0] - a[0]) * (a[1] - P[i][1]) - (a[0] - P[i][0]) * (b[1] - a[1])) / chord;
+        if (dev > maxDev) maxDev = dev;
+      }
+    }
+    // straight line (snaps to horizontal / vertical when close)
+    if (chord / L > 0.9 && maxDev / chord < 0.06 * tol) {
+      var ex = b[0], ey = b[1], dx = ex - a[0], dy = ey - a[1], tl = Math.tan(5 * Math.PI / 180);
+      if (Math.abs(dy) < tl * Math.abs(dx)) ey = a[1]; else if (Math.abs(dx) < tl * Math.abs(dy)) ex = a[0];
+      return { label: 'Line', pts: resample([a, [ex, ey]], NSH) };
+    }
+    var closed = chord / L < 0.2;
+    var cf = fitCircle(P), okc = cf && isFinite(cf.r) && cf.r > 0.05 * zs, C = [];
+    // full circle
+    if (okc && Math.abs(cf.sweep) >= 5.2 && cf.rms < 0.06 * tol) {
+      var tot = cf.sweep >= 0 ? 2 * Math.PI : -2 * Math.PI;
+      for (i = 0; i <= NSH; i++) { var th = cf.a0 + tot * i / NSH; C.push([cf.cx + cf.r * Math.cos(th), cf.cy + cf.r * Math.sin(th)]); }
+      return { label: 'Circle', pts: C };
+    }
+    if (closed) {
+      // ellipse
+      var el = fitEllipse(P);
+      if (el && el.b / el.a > 0.15 && el.rms < 0.1 * tol && Math.abs(el.sweep) > 5) {
+        for (i = 0; i <= NSH; i++) {
+          var tt = el.t0 + el.dir * 2 * Math.PI * i / NSH, ca = el.a * Math.cos(tt), sb = el.b * Math.sin(tt);
+          C.push([el.cx + ca * el.eu[0] + sb * el.ev[0], el.cy + ca * el.eu[1] + sb * el.ev[1]]);
+        }
+        return { label: 'Ellipse', pts: C };
+      }
+      // triangle / rectangle
+      var V = cornersOf(P, L, tol);
+      if (V) {
+        V = rotateNearest(V, a);
+        if (V.length === 3) return { label: 'Triangle', pts: ringPts(V) };
+        var ok4 = true;
+        for (i = 0; i < 4; i++) { var ang = 180 - turnDeg(V[(i + 3) % 4], V[i], V[(i + 1) % 4]); if (Math.abs(ang - 90) > 22 * tol) ok4 = false; }
+        if (!ok4) return { label: 'Shape', pts: ringPts(V) };
+        var e0x = V[1][0] - V[0][0], e0y = V[1][1] - V[0][1], th0 = Math.atan2(e0y, e0x) * 180 / Math.PI;
+        var mod = ((th0 % 90) + 90) % 90, R;
+        if (mod < 7 || mod > 83) {   // axis-aligned: use the bounding box
+          var x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+          V.forEach(function (q) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); });
+          R = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+          if (e0y * (x1 - x0) > 0 && Math.abs(e0y) > Math.abs(e0x)) R = [[x0, y0], [x0, y1], [x1, y1], [x1, y0]];
+        } else {                     // tilted rectangle: keep its angle, make the corners square
+          var cxm = (V[0][0] + V[1][0] + V[2][0] + V[3][0]) / 4, cym = (V[0][1] + V[1][1] + V[2][1] + V[3][1]) / 4;
+          var w = (Math.hypot(V[1][0] - V[0][0], V[1][1] - V[0][1]) + Math.hypot(V[3][0] - V[2][0], V[3][1] - V[2][1])) / 2;
+          var h = (Math.hypot(V[2][0] - V[1][0], V[2][1] - V[1][1]) + Math.hypot(V[0][0] - V[3][0], V[0][1] - V[3][1])) / 2;
+          var ar = th0 * Math.PI / 180, ux = Math.cos(ar), uy = Math.sin(ar), sg = ((V[2][0] - V[1][0]) * -uy + (V[2][1] - V[1][1]) * ux) >= 0 ? 1 : -1, vx = -uy * sg, vy = ux * sg;
+          R = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(function (k) { return [cxm + k[0] * w / 2 * ux + k[1] * h / 2 * vx, cym + k[0] * w / 2 * uy + k[1] * h / 2 * vy]; });
+        }
+        return { label: 'Rectangle', pts: ringPts(rotateNearest(R, a)) };
+      }
+    }
+    // circular arc
+    if (okc && Math.abs(cf.sweep) >= 0.6 && cf.rms < 0.035 * tol) {
+      for (i = 0; i <= NSH; i++) { var th2 = cf.a0 + cf.sweep * i / NSH; C.push([cf.cx + cf.r * Math.cos(th2), cf.cy + cf.r * Math.sin(th2)]); }
+      return { label: 'Arc', pts: C };
+    }
+    // anything else: keep the stroke, just smoothed (more with a higher stabilizer)
+    var base = freehand(raw, z); if (!base) return null;
+    var Q = base.pts, passes = Math.round(S.stab / 100 * 12);
+    for (var r = 0; r < passes && Q.length > 2; r++) {
+      var Q2 = [Q[0]];
+      for (i = 1; i < Q.length - 1; i++) Q2.push([(Q[i - 1][0] + 2 * Q[i][0] + Q[i + 1][0]) / 4, (Q[i - 1][1] + 2 * Q[i][1] + Q[i + 1][1]) / 4]);
+      Q2.push(Q[Q.length - 1]); Q = Q2;
+    }
+    return { label: 'Curve', pts: Q };
+  }
+  // freehand: keep the stroke as drawn (evenly re-spaced so the animation runs at a steady speed)
+  function freehand(raw, z) {
+    z = z || S.zoom;
+    var L = plen(raw); if (L < 0.012 * z) return null;
+    var m = Math.min(cw, ch) || 540, sp = 1.5 * z / m;
+    var N = Math.max(24, Math.min(4000, Math.ceil(L / sp)));
+    return { label: 'Sketch', pts: resample(raw, N) };
+  }
+  // w = pen width in world units: it is fixed when the stroke is made, so it scales with the view like an image
+  function addShape(res, z) {
+    var a = toArrays(res.pts);
+    S.shapes.push({ id: nextId++, color: S.curLine || PALETTE[S.shapes.length % PALETTE.length], dotColor: S.curDot, label: res.label, xs: a.xs, ys: a.ys, f0: 0, f1: 1, w: S.pen * (z || S.zoom) / 540 });
+    renderShapes();
+  }
+  function renderShapes() {
+    var box = $('shapes'); box.innerHTML = '';
+    if (!S.shapes.length) {
+      var e = document.createElement('p'); e.className = 'hint'; e.textContent = 'Nothing drawn yet.'; box.appendChild(e);
+    }
+    S.shapes.forEach(function (sh, i) {
+      var row = document.createElement('div'); row.className = 'shape-row';
+      var dot = document.createElement('span'); dot.className = 'dot'; dot.style.background = sh.color;
+      var nm = document.createElement('span'); nm.className = 'name'; nm.textContent = sh.label + ' ' + (i + 1);
+      var rm = document.createElement('button'); rm.className = 'icon'; rm.innerHTML = ICON_X; rm.setAttribute('aria-label', 'Remove ' + sh.label + ' ' + (i + 1));
+      rm.addEventListener('click', function () { S.shapes.splice(i, 1); renderShapes(); backToEdit(); });
+      row.appendChild(dot); row.appendChild(nm); row.appendChild(rm); box.appendChild(row);
+    });
+    $('undo').disabled = !S.shapes.length; $('clear').disabled = !S.shapes.length;
+    $('pUndo').disabled = !S.shapes.length; $('pClear').disabled = !S.shapes.length; syncSel();
+    if (typeof renderTiming === 'function') renderTiming();
+  }
+  function backToEdit() { p = 0; playing = false; ui(); }
+
+  // pointer handling: one finger draws (with a "string" stabilizer: the brush trails the pointer), two fingers pinch to zoom and pan
+  var ICON_VIEW = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>';
+  $('rv').innerHTML = ICON_VIEW;
+  var ptrs = {}, pinch = null, panning = null, spaceDown = false, drag = null;
+  function canvasPos(e) { var r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+  function viewScale() { return Math.min(cw, ch) / S.zoom; }
+  function toWorld(px, py) { var Sc = viewScale(); return [S.panX + (px - cw / 2) / Sc, S.panY + (ch / 2 - py) / Sc]; }
+  function viewMoved() { return Math.abs(S.zoom - 6) > 0.01 || Math.abs(S.panX) > 0.01 || Math.abs(S.panY) > 0.01; }
+  function fmtX(m) { return '×' + (m >= 10 ? Math.round(m) : m >= 0.1 ? Math.round(m * 10) / 10 : m.toFixed(2)); }
+  function syncViewUI() {
+    $('zoom').value = S.zoom; $('zoomv').textContent = (Math.round(S.zoom * 10) / 10) + ' units';
+    var zl = fmtX(6 / S.zoom); $('zoomD').value = Math.log10(6 / S.zoom); $('zoomDv').textContent = zl; $('pZoom').textContent = zl;
+    $('rv').hidden = !(S.mode === 'draw' && viewMoved());
+  }
+  function zoomAbout(px, py, w0, newZoom) {
+    S.zoom = S.mode === 'draw' ? Math.max(ZMIN, Math.min(ZMAX, newZoom)) : Math.max(1, Math.min(60, newZoom));
+    var sc = viewScale();
+    if (S.mode === 'draw') { S.panX = w0[0] - (px - cw / 2) / sc; S.panY = w0[1] + (py - ch / 2) / sc; }
+    else buildCamera();
+    syncViewUI();
+  }
+  $('rv').addEventListener('click', function () { S.zoom = 6; S.panX = 0; S.panY = 0; syncViewUI(); if (S.mode === 'eq') buildCamera(); });
+  function startPinch() {
+    var ids = Object.keys(ptrs); if (ids.length < 2) return;
+    var a = ptrs[ids[0]], b = ptrs[ids[1]], m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    pinch = { ids: [ids[0], ids[1]], d0: Math.max(10, Math.hypot(a[0] - b[0], a[1] - b[1])), z0: S.zoom, w0: toWorld(m[0], m[1]) };
+  }
+  cv.addEventListener('pointerdown', function (e) {
+    if (exporting) return;
+    e.preventDefault();
+    try { cv.setPointerCapture(e.pointerId); } catch (x) {}
+    var pos = canvasPos(e); ptrs[e.pointerId] = pos;
+    if (Object.keys(ptrs).length >= 2) { live = null; panning = null; stage.classList.remove('grabbing'); startPinch(); return; }
+    if (S.mode !== 'draw') return;
+    if (S.tool === 'hand' || spaceDown || e.button === 1 || e.button === 2) {
+      panning = { id: e.pointerId, x: pos[0], y: pos[1] }; stage.classList.add('grabbing'); return;
+    }
+    if (S.tool === 'select') {
+      playing = false; p = 0; ui();
+      var hs = hitShape(pos); S.sel = hs ? hs.id : null; drag = hs ? { pid: e.pointerId, w: toWorld(pos[0], pos[1]) } : null; syncSel(); return;
+    }
+    playing = false; p = 0; ui();
+    live = { id: e.pointerId, bx: pos[0], by: pos[1], lx: pos[0], ly: pos[1], z: S.zoom, pts: [toWorld(pos[0], pos[1])] };
+  });
+  cv.addEventListener('pointermove', function (e) {
+    if (ptrs[e.pointerId]) ptrs[e.pointerId] = canvasPos(e);
+    if (pinch) {
+      var a = ptrs[pinch.ids[0]], b = ptrs[pinch.ids[1]]; if (!a || !b) return;
+      var d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (d < 10) return;
+      zoomAbout((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, pinch.w0, pinch.z0 * pinch.d0 / d);
+      return;
+    }
+    if (drag && e.pointerId === drag.pid) {
+      var dw = toWorld.apply(null, canvasPos(e)), dsh = selShape();
+      if (dsh) xform(dsh, function (x, y) { return [x + dw[0] - drag.w[0], y + dw[1] - drag.w[1]]; });
+      drag.w = dw; return;
+    }
+    if (panning && e.pointerId === panning.id) {
+      var pp = canvasPos(e), psc = viewScale();
+      S.panX -= (pp[0] - panning.x) / psc; S.panY += (pp[1] - panning.y) / psc;
+      panning.x = pp[0]; panning.y = pp[1]; syncViewUI();
+      return;
+    }
+    if (!live || e.pointerId !== live.id) return;
+    var evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    if (!evs.length) evs = [e];
+    var R = S.stab / 100 * 45;
+    evs.forEach(function (ev) {
+      var pos = canvasPos(ev); live.lx = pos[0]; live.ly = pos[1];
+      var dx = pos[0] - live.bx, dy = pos[1] - live.by, d = Math.hypot(dx, dy);
+      if (d > R) {
+        var k = (d - R) / d; live.bx += dx * k; live.by += dy * k;
+        var w = toWorld(live.bx, live.by), lp = live.pts[live.pts.length - 1];
+        if (Math.hypot(w[0] - lp[0], w[1] - lp[1]) > 0.004 * live.z / 6) live.pts.push(w);
+      }
+    });
+  });
+  function endPtr(e, ok) {
+    delete ptrs[e.pointerId];
+    if (pinch && pinch.ids.indexOf(String(e.pointerId)) >= 0) pinch = null;
+    if (drag && drag.pid === e.pointerId) drag = null;
+    if (panning && panning.id === e.pointerId) { panning = null; stage.classList.remove('grabbing'); }
+    if (!live || e.pointerId !== live.id) return;
+    var pts = live.pts, z = live.z;
+    if (ok) { // let the stroke finish exactly where the pointer was lifted
+      var fw = toWorld(live.lx, live.ly), lp = pts[pts.length - 1];
+      if (Math.hypot(fw[0] - lp[0], fw[1] - lp[1]) > 1e-9) pts.push(fw);
+    }
+    live = null;
+    if (ok && S.shapes.length < MAXSHAPES) { var res = S.stab > 0 ? clean(pts, z) : freehand(pts, z); if (res) addShape(res, z); }
+    else if (ok) setStatus('Shape limit reached (' + MAXSHAPES + '). Undo or clear some first.');
+    backToEdit();
+  }
+  cv.addEventListener('pointerup', function (e) { endPtr(e, true); });
+  cv.addEventListener('pointercancel', function (e) { endPtr(e, false); });
+  cv.addEventListener('wheel', function (e) {
+    if (!(isFull || e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    var pos = canvasPos(e), w0 = toWorld(pos[0], pos[1]);
+    zoomAbout(pos[0], pos[1], w0, S.zoom * Math.exp(e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
+  }, { passive: false });
+  cv.addEventListener('contextmenu', function (e) { if (S.mode === 'draw') e.preventDefault(); });
+
+  /* ---------- drawing (same code for the screen and the video) ---------- */
+  function activeItems() {
+    return S.mode === 'draw' ? S.shapes : S.eqs.filter(function (e) { return e.xs; });
+  }
+  function niceStep(minUnits) {
+    var e = Math.pow(10, Math.floor(Math.log10(minUnits))), m = minUnits / e;
+    return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * e;
+  }
+  function fmtNum(v, step) {
+    var d = step >= 1 ? 0 : Math.min(4, Math.ceil(-Math.log10(step) - 1e-9));
+    return (Math.abs(v) < 1e-9 ? 0 : v).toFixed(d);
+  }
+  function isLight(h) { var n = parseInt(h.slice(1), 16); return (((n >> 16) & 255) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000 > 150; }
+  function dotAt(it, q) { var n = it.xs.length - 1, f = itemQ(it, q) * n, i = Math.min(n - 1, Math.floor(f)), t = f - i; return [it.xs[i] + (it.xs[i + 1] - it.xs[i]) * t, it.ys[i] + (it.ys[i + 1] - it.ys[i]) * t]; }
+  function camDraw(q) {   // camera moves for drawings: all eased, start exactly at the view you set
+    var b = { x: S.panX, y: S.panY, z: S.zoom }, m = S.cam;
+    if (m === 'none' || !S.shapes.length) return b;
+    var e = q * q * (3 - 2 * q), e2 = e * e * (3 - 2 * e);
+    if (m === 'zin') return { x: b.x, y: b.y, z: b.z * (1 - 0.6 * e2) };
+    if (m === 'zout') return { x: b.x, y: b.y, z: b.z * (1 + 1.4 * e2) };
+    if (m === 'drift') return { x: b.x + 0.3 * b.z * (e - 0.5), y: b.y + 0.1 * b.z * Math.sin(q * Math.PI), z: b.z * (1 - 0.15 * e) };
+    var sx = 0, sy = 0, k;   // follow: average position of the dots a moment ago, so the camera glides behind them
+    for (k = 0; k < 14; k++) {
+      var qq = Math.max(0, q - k * 0.014), ax = 0, ay = 0, cn = 0;
+      S.shapes.forEach(function (it) { if (qq >= it.f0 - 1e-9) { var d = dotAt(it, qq); ax += d[0]; ay += d[1]; cn++; } });
+      if (!cn) { var d0 = dotAt(S.shapes[0], S.shapes[0].f0); ax = d0[0]; ay = d0[1]; cn = 1; }
+      sx += ax / cn; sy += ay / cn;
+    }
+    var w = ss(q / 0.1);
+    return { x: b.x + (sx / 14 - b.x) * w, y: b.y + (sy / 14 - b.y) * w, z: b.z * (1 - 0.45 * w) };
+  }
+  function draw(c, W, H, q, edit) {
+    var drawMode = S.mode === 'draw';
+    var cam = drawMode ? (edit ? { x: S.panX, y: S.panY, z: S.zoom } : camDraw(q)) : null;
+    var u = Math.min(W, H) / 540, Sc = Math.min(W, H) / (cam ? cam.z : S.zoom);
+    var cx = cam ? cam.x : camAt(camX, q), cy = cam ? cam.y : camAt(camY, q);
+    function tx(x) { return W / 2 + (x - cx) * Sc; }
+    function ty(y) { return H / 2 - (y - cy) * Sc; }
+    c.fillStyle = drawMode ? S.bg : '#000'; c.fillRect(0, 0, W, H);
+
+    var xl = cx - W / (2 * Sc), xr = cx + W / (2 * Sc), yb = cy - H / (2 * Sc), yt = cy + H / (2 * Sc);
+    var step = niceStep(56 * u / Sc), g;
+    c.lineWidth = 0.6 * u; c.strokeStyle = drawMode && !S.grid ? 'rgba(0,0,0,0)' : (drawMode && isLight(S.bg) ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.1)'); c.beginPath();
+    for (g = Math.ceil(xl / step) * step; g <= xr; g += step) { var px = Math.round(tx(g)) + 0.5; c.moveTo(px, 0); c.lineTo(px, H); }
+    for (g = Math.ceil(yb / step) * step; g <= yt; g += step) { var py = Math.round(ty(g)) + 0.5; c.moveTo(0, py); c.lineTo(W, py); }
+    c.stroke();
+    if (!drawMode) {
+      c.lineWidth = 1.5 * u; c.strokeStyle = 'rgba(255,255,255,0.8)'; c.beginPath();
+      var ay = Math.round(ty(0)) + 0.5; c.moveTo(0, ay); c.lineTo(W, ay); c.stroke();
+      c.fillStyle = 'rgba(235,238,248,0.85)'; c.font = (13 * u) + 'px Manrope, sans-serif'; c.textAlign = 'center';
+      var ly = Math.min(H - 8 * u, Math.max(18 * u, ty(0) + 20 * u));
+      for (g = Math.ceil(xl / step) * step; g <= xr; g += step) {
+        if (Math.abs(g) < step / 2) continue;
+        c.fillText(fmtNum(g, step), tx(g), ly);
+      }
+    }
+
+    var items = activeItems(), dots = [];
+    items.forEach(function (it, idx) {
+      var xs = it.xs, ys = it.ys, n = xs.length - 1;
+      // hand-drawn strokes keep their width in drawing units, so zooming makes them thicker, like zooming an image
+      var sm = !!it.w, ui = sm ? Math.max(0.16, it.w * Sc / 3.2) : u, LIM = sm ? 1e7 : 1e5;
+      var qi = itemQ(it, q), started = q >= it.f0 - 1e-9;
+      var fi = qi * n, i0 = Math.min(n - 1, Math.floor(fi)), t = fi - i0;
+      var okDot = isFinite(ys[i0]) && isFinite(ys[i0 + 1]);
+      var dxw = xs[i0] + (xs[i0 + 1] - xs[i0]) * t, dyw = ys[i0] + (ys[i0 + 1] - ys[i0]) * t;
+      var Xd = tx(dxw), Yd = ty(dyw);
+      function trace(a, b, endToo) {
+        var pen = false, pX = 0, pY = 0; c.beginPath();
+        for (var i = a; i <= b; i++) {
+          var y = ys[i]; if (!isFinite(y)) { pen = false; continue; }
+          var X = tx(xs[i]), Y = ty(y);
+          if (Math.abs(Y) > LIM || Math.abs(X) > LIM) { pen = false; continue; }
+          if (!sm) { if (pen) c.lineTo(X, Y); else { c.moveTo(X, Y); pen = true; } }
+          else if (!pen) { c.moveTo(X, Y); pen = true; }
+          else c.quadraticCurveTo(pX, pY, (pX + X) / 2, (pY + Y) / 2); // smooth curve through the samples, stays smooth at any zoom
+          pX = X; pY = Y;
+        }
+        if (sm && pen) c.lineTo(pX, pY);
+        if (endToo && pen && okDot) c.lineTo(Xd, Yd);
+        c.stroke();
+      }
+      c.lineJoin = 'round'; c.lineCap = 'round'; c.lineWidth = 3.2 * ui;
+      if (edit) { c.strokeStyle = hexA(it.color, 0.9); trace(0, n, false); return; }
+      c.strokeStyle = hexA(it.color, 0.16); trace(i0, n, false);
+      c.strokeStyle = hexA(it.color, 0.6); trace(0, i0, true);
+      if (!okDot || !started) return;
+
+      // glowing tail: walk back along the samples in screen pixels
+      var L = 150 * ui, pts = [{ X: Xd, Y: Yd, d: 0 }], acc = 0, px0 = Xd, py0 = Yd;
+      for (var i = i0; i >= 0 && acc < L; i--) {
+        if (!isFinite(ys[i])) break;
+        var X = tx(xs[i]), Y = ty(ys[i]);
+        if (Math.abs(Y) > LIM || Math.abs(X) > LIM) break;
+        var sg = Math.hypot(X - px0, Y - py0); if (sg < 0.3 * Math.min(1, ui)) continue;
+        acc += sg; px0 = X; py0 = Y; pts.push({ X: X, Y: Y, d: acc });
+      }
+      // tail: one single stroke with the same thickness all along (no stacked glow), fading out behind the head;
+      // its glow is much smaller than the glow of the dot
+      if (pts.length > 1) {
+        var lastP = pts[pts.length - 1], tg = c.createLinearGradient(Xd, Yd, lastP.X, lastP.Y);
+        tg.addColorStop(0, hexA(it.color, 1)); tg.addColorStop(1, hexA(it.color, 0));
+        c.strokeStyle = tg; c.lineWidth = 3.2 * ui; c.lineCap = 'round'; c.lineJoin = 'round';
+        c.shadowColor = it.color; c.shadowBlur = Math.min(4 * ui, 12);
+        c.beginPath(); c.moveTo(pts[0].X, pts[0].Y);
+        for (var k = 1; k < pts.length; k++) c.lineTo(pts[k].X, pts[k].Y);
+        c.stroke();
+        c.shadowBlur = 0;
+      }
+      if (Yd > -40 * u && Yd < H + 40 * u && Xd > -40 * u && Xd < W + 40 * u) dots.push({ it: it, idx: idx, X: Xd, Y: Yd, ui: ui });
+    });
+
+    // head: white dot in a soft glow of the curve colour; halos grow when two dots get close
+    dots.forEach(function (d) {
+      var near = 0, du = d.ui;
+      dots.forEach(function (o) { if (o !== d) near = Math.max(near, ss(1 - Math.hypot(o.X - d.X, o.Y - d.Y) / (70 * du))); });
+      var sk = S.dotSize, hc = d.it.dotColor || d.it.color, R = (22 + 10 * near) * du * sk, g2 = c.createRadialGradient(d.X, d.Y, 0, d.X, d.Y, R);
+      g2.addColorStop(0, hexA(hc, 0.55)); g2.addColorStop(1, hexA(hc, 0));
+      c.fillStyle = g2; c.beginPath(); c.arc(d.X, d.Y, R, 0, 7); c.fill();
+      c.shadowColor = d.it.dotColor || '#ffffff'; c.shadowBlur = Math.min(14 * du * sk, 40); c.fillStyle = d.it.dotColor || '#ffffff';
+      c.beginPath(); c.arc(d.X, d.Y, 6.5 * du * sk, 0, 7); c.fill(); c.shadowBlur = 0;
+      if (d.it.text) {
+        c.fillStyle = d.it.color; c.font = '600 ' + (13 * u) + 'px Manrope, sans-serif'; c.textAlign = 'left';
+        var lbl = cleanLabel(d.it.text), off = d.idx % 2 === 0 ? 26 * u : -16 * u;
+        var lw = c.measureText(lbl).width, lx = d.X + 18 * u; if (lx + lw > W - 8 * u) lx = d.X - 18 * u - lw;
+        c.fillText(lbl, lx, d.Y + off);
+      }
+    });
+
+    // screen-only helpers for drawing mode
+    if (c === ctx && drawMode) {
+      var asp = S.shape === 'tall' ? 9 / 16 : 16 / 9, mn = Math.min(W, H), fw = mn * Math.max(1, asp), fh = mn * Math.max(1, 1 / asp);
+      if (edit && (Math.abs(fw - W) > 2 || Math.abs(fh - H) > 2)) { // full-screen canvas: show which part ends up in the video
+        var fx = (W - fw) / 2, fy = (H - fh) / 2, ft = Math.max(0, fy), fb = Math.min(H, fy + fh);
+        c.fillStyle = 'rgba(0,0,0,0.45)';
+        c.fillRect(0, 0, W, ft); c.fillRect(0, fb, W, H - fb);
+        c.fillRect(0, ft, Math.max(0, fx), fb - ft); c.fillRect(Math.min(W, fx + fw), ft, Math.max(0, W - fx - fw), fb - ft);
+        c.setLineDash([8 * u, 6 * u]); c.strokeStyle = 'rgba(255,255,255,0.35)'; c.lineWidth = 1.2 * u; c.strokeRect(fx, fy, fw, fh); c.setLineDash([]);
+        c.fillStyle = 'rgba(255,255,255,0.5)'; c.font = '600 ' + (11 * u) + 'px Manrope, sans-serif'; c.textAlign = 'left';
+        c.fillText('Video area', Math.max(8 * u, fx + 8 * u), Math.max(16 * u, fy + 16 * u));
+      }
+      var sh0 = edit && selShape();
+      if (sh0) {
+        var bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
+        for (var bi = 0; bi < sh0.xs.length; bi += 2) { var bX = tx(sh0.xs[bi]), bY = ty(sh0.ys[bi]); bx0 = Math.min(bx0, bX); bx1 = Math.max(bx1, bX); by0 = Math.min(by0, bY); by1 = Math.max(by1, bY); }
+        var pd = 10 * u; c.setLineDash([6 * u, 5 * u]); c.strokeStyle = '#5aa9ff'; c.lineWidth = 1.5 * u; c.strokeRect(bx0 - pd, by0 - pd, bx1 - bx0 + 2 * pd, by1 - by0 + 2 * pd); c.setLineDash([]);
+      }
+      if (live && live.pts.length) {
+        c.strokeStyle = 'rgba(255,255,255,0.9)'; c.lineWidth = S.pen * u; c.lineJoin = 'round'; c.lineCap = 'round'; c.beginPath();
+        live.pts.forEach(function (w, i) { var X = tx(w[0]), Y = ty(w[1]); if (i) c.lineTo(X, Y); else c.moveTo(X, Y); });
+        c.stroke();
+      }
+      if (!S.shapes.length && !live) {
+        c.fillStyle = 'rgba(160,170,200,0.75)'; c.font = '600 ' + (16 * u) + 'px Manrope, sans-serif'; c.textAlign = 'center';
+        c.fillText('Draw here', W / 2, H / 2);
+      }
+    }
+  }
+
+  /* ---------- screen canvas ---------- */
+  var cw = 0, ch = 0;
+  function resize() {
+    var r = cv.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 3);
+    cw = r.width; ch = r.height;
+    cv.width = Math.max(1, Math.round(cw * d)); cv.height = Math.max(1, Math.round(ch * d));
+    ctx.setTransform(d, 0, 0, d, 0, 0);
+  }
+  function fmtT(s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+  function ui() {
+    $('scrub').value = Math.round(p * 1000);
+    var heads = document.querySelectorAll('.phead'); for (var hi = 0; hi < heads.length; hi++) heads[hi].style.left = (p * 100) + '%';
+    $('time').textContent = fmtT(p * S.dur) + ' / ' + fmtT(S.dur);
+    var b = $('play');
+    if (p >= 1 && !playing) { b.innerHTML = ICON_REPLAY; b.setAttribute('aria-label', 'Replay'); }
+    else if (playing) { b.innerHTML = ICON_PAUSE; b.setAttribute('aria-label', 'Pause'); }
+    else { b.innerHTML = ICON_PLAY; b.setAttribute('aria-label', 'Play'); }
+  }
+  function editing() { return S.mode === 'draw' && !playing && p === 0 && !exporting; }
+  function frame(now) {
+    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (playing) { p += dt / S.dur; if (p >= 1) { p = 1; playing = false; } ui(); }
+    try { draw(ctx, cw, ch, p, editing()); } catch (err) { /* keep the loop alive */ }
+    requestAnimationFrame(frame);
+  }
+  function changed() {
+    buildCamera();
+    clearTimeout(restartTimer);
+    restartTimer = setTimeout(function () { p = 0; playing = !reduce; last = performance.now(); ui(); }, 350);
+  }
+
+  /* ---------- per-item timing ---------- */
+  function itemName(it, i) { return it.text ? (cleanLabel(it.text) || 'Equation ' + (i + 1)) : it.label + ' ' + (i + 1); }
+  function onTimingChange() { if (S.mode === 'eq') buildCamera(); }
+  function renderTiming() {
+    var box = $('timing'); box.innerHTML = '';
+    var items = activeItems();
+    $('timeSec').hidden = !items.length;
+    items.forEach(function (it, i) {
+      var row = document.createElement('div'); row.className = 'trow';
+      var head = document.createElement('div'); head.className = 'thead';
+      var dot = document.createElement('span'); dot.className = 'dot'; dot.style.background = it.color;
+      var tn = document.createElement('span'); tn.className = 'tn'; tn.textContent = itemName(it, i);
+      var tt = document.createElement('span'); tt.className = 'tt';
+      head.appendChild(dot); head.appendChild(tn); head.appendChild(tt);
+      var track = document.createElement('div'); track.className = 'track';
+      var bar = document.createElement('div'); bar.className = 'tbar';
+      bar.style.background = hexA(it.color, 0.35); bar.style.borderColor = it.color;
+      var hl = document.createElement('button'); hl.className = 'th l'; hl.setAttribute('role', 'slider'); hl.setAttribute('aria-label', 'Start time of ' + itemName(it, i));
+      var hr = document.createElement('button'); hr.className = 'th r'; hr.setAttribute('role', 'slider'); hr.setAttribute('aria-label', 'End time of ' + itemName(it, i));
+      var ph = document.createElement('div'); ph.className = 'phead'; ph.style.left = (p * 100) + '%';
+      bar.appendChild(hl); bar.appendChild(hr); track.appendChild(bar); track.appendChild(ph);
+      row.appendChild(head); row.appendChild(track); box.appendChild(row);
+      function paint() {
+        bar.style.left = (it.f0 * 100) + '%'; bar.style.width = ((it.f1 - it.f0) * 100) + '%';
+        tt.textContent = (it.f0 * S.dur).toFixed(1) + ' to ' + (it.f1 * S.dur).toFixed(1) + ' s';
+        hl.setAttribute('aria-valuemin', '0'); hl.setAttribute('aria-valuemax', String(S.dur)); hl.setAttribute('aria-valuenow', (it.f0 * S.dur).toFixed(1));
+        hr.setAttribute('aria-valuemin', '0'); hr.setAttribute('aria-valuemax', String(S.dur)); hr.setAttribute('aria-valuenow', (it.f1 * S.dur).toFixed(1));
+      }
+      function snap(f) { return Math.round(f * S.dur * 10) / 10 / S.dur; }
+      function minLen() { return Math.max(0.2 / S.dur, 0.02); }
+      function drag(el, kind) {
+        el.addEventListener('pointerdown', function (e) {
+          e.preventDefault(); e.stopPropagation();
+          try { el.setPointerCapture(e.pointerId); } catch (x) {}
+          var rect = track.getBoundingClientRect(), x0 = e.clientX, a0 = it.f0, b0 = it.f1, id = e.pointerId;
+          function mv(ev) {
+            if (ev.pointerId !== id) return;
+            var d = (ev.clientX - x0) / rect.width;
+            if (kind === 'move') { var len = b0 - a0, na = Math.max(0, Math.min(1 - len, snap(a0 + d))); it.f0 = na; it.f1 = na + len; }
+            else if (kind === 'l') { it.f0 = Math.max(0, Math.min(b0 - minLen(), snap(a0 + d))); it.f1 = b0; }
+            else { it.f1 = Math.min(1, Math.max(a0 + minLen(), snap(b0 + d))); it.f0 = a0; }
+            paint(); onTimingChange();
+          }
+          function up(ev) { if (ev.pointerId !== id) return; el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); }
+          el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+        });
+      }
+      drag(bar, 'move'); drag(hl, 'l'); drag(hr, 'r');
+      function key(el, which) {
+        el.addEventListener('keydown', function (e) {
+          var s = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0; if (!s) return;
+          e.preventDefault(); var d = s * (e.shiftKey ? 1 : 0.1) / S.dur;
+          if (which === 'l') it.f0 = Math.max(0, Math.min(it.f1 - minLen(), snap(it.f0 + d)));
+          else it.f1 = Math.min(1, Math.max(it.f0 + minLen(), snap(it.f1 + d)));
+          paint(); onTimingChange();
+        });
+      }
+      key(hl, 'l'); key(hr, 'r');
+      paint();
+    });
+  }
+  $('resetT').addEventListener('click', function () { activeItems().forEach(function (it) { it.f0 = 0; it.f1 = 1; }); renderTiming(); onTimingChange(); });
+
+  /* ---------- full screen (works as a page overlay everywhere, real full screen where allowed) ---------- */
+  var mainEl = document.querySelector('.main'), isFull = false;
+  var ICON_EXPAND = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+  var ICON_COLLAPSE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>';
+  var pushed = false, initialHist = history.length > 1;
+  function setFull(on) {
+    if (on && !isFull) { try { history.pushState({ mmFull: 1 }, ''); pushed = true; } catch (e) { pushed = false; } }
+    else if (!on && isFull && pushed) { pushed = false; try { history.back(); } catch (e) {} }
+    isFull = on; mainEl.classList.toggle('full', on);
+    document.documentElement.style.overflow = on ? 'hidden' : '';
+    $('fs').innerHTML = on ? ICON_COLLAPSE : ICON_EXPAND;
+    $('fs').setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen');
+    if (on) { try { var r = mainEl.requestFullscreen && mainEl.requestFullscreen(); if (r && r.catch) r.catch(function () {}); } catch (e) {} }
+    else if (document.fullscreenElement) { try { document.exitFullscreen(); } catch (e) {} }
+    syncFullPen();
+  }
+  function updateBack() { $('backH').disabled = !isFull && S.mode === 'eq' && !initialHist; }
+  function goBack() {   // one step out: full screen -> normal view -> equations -> previous page
+    if (isFull) { setFull(false); return; }
+    if (S.mode === 'draw') { $('mode').querySelector('[data-v="eq"]').click(); return; }
+    if (initialHist) { try { history.back(); } catch (e) {} }
+  }
+  $('backH').addEventListener('click', goBack); $('backFS').addEventListener('click', goBack);
+  window.addEventListener('popstate', function () { if (isFull) { pushed = false; setFull(false); } });
+  function syncFullPen() {
+    updateBack();
+    mainEl.classList.toggle('fullpen', isFull && S.mode === 'draw');
+    setTimeout(resize, 60);
+  }
+  $('fs').addEventListener('click', function () { setFull(!isFull); });
+  document.addEventListener('fullscreenchange', function () { if (!document.fullscreenElement && isFull) setFull(false); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && isFull) setFull(false); });
+  $('fs').innerHTML = ICON_EXPAND;
+
+  /* ---------- controls ---------- */
+  function setStatus(t) { $('status').textContent = t; }
+  $('add').addEventListener('click', function () { if (S.eqs.length < PALETTE.length) { addEq('sin(x)'); renderEqs(); changed(); } });
+  $('undo').addEventListener('click', function () { S.shapes.pop(); renderShapes(); backToEdit(); });
+  $('clear').addEventListener('click', function () { S.shapes = []; renderShapes(); backToEdit(); });
+  $('play').addEventListener('click', function () {
+    if (S.mode === 'draw' && !S.shapes.length) { setStatus('Draw something first.'); return; }
+    if (p >= 1) { p = 0; playing = true; } else playing = !playing;
+    last = performance.now(); ui();
+  });
+  $('scrub').addEventListener('input', function () { p = $('scrub').value / 1000; playing = false; ui(); });
+  function readRange() {
+    var a = parseFloat($('xmin').value), b = parseFloat($('xmax').value);
+    if (isFinite(a) && isFinite(b) && b > a) { S.xmin = a; S.xmax = b; sampleAll(); changed(); }
+  }
+  $('xmin').addEventListener('input', readRange); $('xmax').addEventListener('input', readRange);
+  $('zoom').addEventListener('input', function () { S.zoom = parseFloat($('zoom').value); syncViewUI(); buildCamera(); });
+  $('dur').addEventListener('input', function () { S.dur = parseInt($('dur').value, 10); $('durv').textContent = S.dur + ' s'; renderTiming(); ui(); });
+  $('stab').addEventListener('input', function () { S.stab = parseInt($('stab').value, 10); syncPenUI(); });
+  /* ---------- drawing tools: zoom, pen, hand, style (sidebar + full-screen toolbar) ---------- */
+  function syncCursor() { stage.classList.toggle('hand', S.mode === 'draw' && (S.tool === 'hand' || spaceDown)); }
+  function syncPenUI() {
+    $('pen').value = S.pen; $('pPen').value = S.pen; $('penv').textContent = S.pen.toFixed(1) + ' px';
+    $('stab').value = S.stab; $('pStab').value = S.stab; $('stabv').textContent = S.stab ? S.stab + '%' : 'off';
+    $('pHand').setAttribute('aria-pressed', S.tool === 'hand' ? 'true' : 'false'); $('pSel').setAttribute('aria-pressed', S.tool === 'select' ? 'true' : 'false');
+    Array.prototype.forEach.call($('tools').children, function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === S.tool ? 'true' : 'false'); });
+  }
+  function zoomBy(f) { var w0 = toWorld(cw / 2, ch / 2); zoomAbout(cw / 2, ch / 2, w0, S.zoom / f); }
+  $('zoomD').addEventListener('input', function () { var w0 = toWorld(cw / 2, ch / 2); zoomAbout(cw / 2, ch / 2, w0, 6 / Math.pow(10, parseFloat($('zoomD').value))); });
+  $('pIn').addEventListener('click', function () { zoomBy(1.6); });
+  $('pOut').addEventListener('click', function () { zoomBy(1 / 1.6); });
+  function setPen(v) { S.pen = Math.max(0.5, Math.min(14, parseFloat(v) || 3.2)); syncPenUI(); }
+  $('pen').addEventListener('input', function () { setPen($('pen').value); });
+  $('pPen').addEventListener('input', function () { setPen($('pPen').value); });
+  $('pStab').addEventListener('input', function () { S.stab = parseInt($('pStab').value, 10); syncPenUI(); });
+  $('pHand').addEventListener('click', function () { S.tool = S.tool === 'hand' ? 'pen' : 'hand'; syncPenUI(); syncCursor(); });
+  $('pUndo').addEventListener('click', function () { $('undo').click(); });
+  $('pClear').addEventListener('click', function () { $('clear').click(); });
+  document.addEventListener('keydown', function (e) {
+    if (S.mode !== 'draw') return;
+    var tg = e.target && e.target.tagName;
+    if ((e.ctrlKey || e.metaKey) && e.key && e.key.toLowerCase() === 'z' && tg !== 'TEXTAREA') { e.preventDefault(); S.shapes.pop(); renderShapes(); backToEdit(); return; }
+    if (e.code === 'Space' && tg !== 'INPUT' && tg !== 'TEXTAREA' && tg !== 'BUTTON') { e.preventDefault(); if (!spaceDown) { spaceDown = true; syncCursor(); } }
+  });
+  document.addEventListener('keyup', function (e) { if (e.code === 'Space' && spaceDown) { spaceDown = false; syncCursor(); } });
+
+  function segment(id, cb) {
+    var box = $(id);
+    box.addEventListener('click', function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      Array.prototype.forEach.call(box.children, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+      cb(b.getAttribute('data-v'));
+    });
+  }
+  segment('mode', function (v) {
+    S.mode = v; live = null; panning = null;
+    if (v === 'eq') { S.zoom = Math.max(1, Math.min(60, S.zoom)); buildCamera(); }
+    $('viewSlider').hidden = v === 'draw';
+    $('eqSec').hidden = v !== 'eq'; $('drawSec').hidden = v !== 'draw';
+    stage.classList.toggle('pen', v === 'draw');
+    cv.setAttribute('aria-label', v === 'draw' ? 'Drawing area' : 'Animated graph of your equations');
+    setStatus(''); renderTiming(); syncViewUI(); syncFullPen(); syncCursor();
+    if (v === 'draw') { p = 0; playing = false; }
+    else { p = 0; playing = !reduce; last = performance.now(); }
+    ui();
+  });
+  segment('shape', function (v) { S.shape = v; stage.className = 'stage ' + v + (S.mode === 'draw' ? ' pen' : ''); syncCursor(); buildCamera(); resize(); });
+  segment('quality', function (v) { S.quality = parseInt(v, 10); });
+  /* ---------- select / move / transform, colours, camera ---------- */
+  function selShape() { for (var i = 0; i < S.shapes.length; i++) if (S.shapes[i].id === S.sel) return S.shapes[i]; return null; }
+  function xform(sh, fn) { for (var i = 0; i < sh.xs.length; i++) { var r = fn(sh.xs[i], sh.ys[i]); sh.xs[i] = r[0]; sh.ys[i] = r[1]; } }
+  function centerOf(sh) { var a = Infinity, b = -Infinity, c2 = Infinity, d = -Infinity; for (var i = 0; i < sh.xs.length; i++) { a = Math.min(a, sh.xs[i]); b = Math.max(b, sh.xs[i]); c2 = Math.min(c2, sh.ys[i]); d = Math.max(d, sh.ys[i]); } return [(a + b) / 2, (c2 + d) / 2]; }
+  function hitShape(pos) {
+    var Sc = viewScale();
+    for (var i = S.shapes.length - 1; i >= 0; i--) {
+      var sh = S.shapes[i], tol = Math.max(16, sh.w * Sc / 2 + 10), st = Math.max(1, Math.floor(sh.xs.length / 1500));
+      for (var k = 0; k < sh.xs.length; k += st) if (Math.hypot(cw / 2 + (sh.xs[k] - S.panX) * Sc - pos[0], ch / 2 - (sh.ys[k] - S.panY) * Sc - pos[1]) < tol) return sh;
+    }
+    return null;
+  }
+  function syncSel() {
+    var sh = selShape(); if (!sh) S.sel = null;
+    $('selSec').hidden = !sh; $('pDel').disabled = !sh;
+    var lc = sh ? sh.color : (S.curLine || PALETTE[S.shapes.length % PALETTE.length]), dc = sh ? (sh.dotColor || '#ffffff') : (S.curDot || '#ffffff');
+    Array.prototype.forEach.call(document.querySelectorAll('.cLine'), function (e) { e.value = lc; });
+    Array.prototype.forEach.call(document.querySelectorAll('.cDot'), function (e) { e.value = dc; });
+  }
+  function editSel(fn) { var sh = selShape(); if (sh) { fn(sh); backToEdit(); } }
+  function delSel() { editSel(function (sh) { S.shapes.splice(S.shapes.indexOf(sh), 1); S.sel = null; renderShapes(); }); }
+  $('sDel').addEventListener('click', delSel); $('pDel').addEventListener('click', delSel);
+  $('sBig').addEventListener('click', function () { editSel(function (sh) { var m = centerOf(sh); xform(sh, function (x, y) { return [m[0] + (x - m[0]) * 1.2, m[1] + (y - m[1]) * 1.2]; }); }); });
+  $('sSmall').addEventListener('click', function () { editSel(function (sh) { var m = centerOf(sh); xform(sh, function (x, y) { return [m[0] + (x - m[0]) / 1.2, m[1] + (y - m[1]) / 1.2]; }); }); });
+  $('sRot').addEventListener('click', function () { editSel(function (sh) { var m = centerOf(sh), co = Math.cos(Math.PI / 12), si = Math.sin(Math.PI / 12); xform(sh, function (x, y) { var dx = x - m[0], dy = y - m[1]; return [m[0] + dx * co - dy * si, m[1] + dx * si + dy * co]; }); }); });
+  $('sDup').addEventListener('click', function () { editSel(function (sh) { var o = 0.05 * S.zoom, cp = {}; for (var k in sh) cp[k] = sh[k]; cp.id = nextId++; cp.xs = Float64Array.from(sh.xs, function (v) { return v + o; }); cp.ys = Float64Array.from(sh.ys, function (v) { return v - o; }); S.shapes.push(cp); S.sel = cp.id; renderShapes(); }); });
+  Array.prototype.forEach.call(document.querySelectorAll('.cLine'), function (el) { el.addEventListener('input', function () { var sh = selShape(); if (sh) sh.color = el.value; else S.curLine = el.value; syncSel(); renderShapes(); }); });
+  Array.prototype.forEach.call(document.querySelectorAll('.cDot'), function (el) { el.addEventListener('input', function () { var sh = selShape(); if (sh) sh.dotColor = el.value; else S.curDot = el.value; syncSel(); }); });
+  $('dsz').addEventListener('input', function () { S.dotSize = parseFloat($('dsz').value); $('dszv').textContent = S.dotSize.toFixed(1) + '×'; });
+  $('bgc').addEventListener('input', function () { S.bg = $('bgc').value; });
+  $('gridc').addEventListener('change', function () { S.grid = $('gridc').checked; });
+  $('cam').addEventListener('change', function () { S.cam = $('cam').value; p = 0; playing = !reduce; last = performance.now(); ui(); });
+  segment('tools', function (v) { S.tool = v; syncPenUI(); syncCursor(); });
+  $('pSel').addEventListener('click', function () { S.tool = S.tool === 'select' ? 'pen' : 'select'; syncPenUI(); syncCursor(); });
+  document.addEventListener('keydown', function (e) { if (S.mode === 'draw' && S.sel && (e.key === 'Delete' || e.key === 'Backspace') && e.target.tagName !== 'INPUT') { e.preventDefault(); delSel(); } });
+
+  /* ---------- MP4 export ---------- */
+  async function exportMp4() {
+    if (exporting) return;
+    if (S.mode === 'eq') {
+      var bad = S.eqs.filter(function (e) { return !e.fn; });
+      if (bad.length || !S.eqs.length) { setStatus('Fix the equations marked in red first.'); return; }
+    } else if (!S.shapes.length) { setStatus('Draw something first.'); return; }
+    if (!('VideoEncoder' in window) || !window.Mp4Muxer) { setStatus('This browser cannot make MP4 files. Try the latest Chrome, Edge or Safari.'); return; }
+    var downloads = null;
+    if (window.claude && window.claude.use) {
+      try { downloads = await window.claude.use('downloads'); } catch (e) { downloads = null; }
+    } else {
+      // opened as a normal web page: save with an ordinary download link
+      downloads = { save: function (o) {
+        return new Promise(function (resolve) {
+          var a = document.createElement('a'); a.href = URL.createObjectURL(o.data); a.download = o.filename;
+          document.body.appendChild(a); a.click();
+          setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 4000); resolve({ status: 'saved' });
+        });
+      } };
+    }
+    if (!downloads) { setStatus('Saving files is not available in this view.'); return; }
+
+    exporting = true; playing = false; live = null; ui();
+    $('dl').disabled = true; $('dltxt').textContent = 'Rendering…'; $('progwrap').hidden = false; $('prog').style.width = '0%';
+    try {
+      var tall = S.shape === 'tall', hd = S.quality === 1080;
+      var w = tall ? (hd ? 1080 : 720) : (hd ? 1920 : 1280), h = tall ? (hd ? 1920 : 1280) : (hd ? 1080 : 720);
+      var fps = 30, body = Math.round(S.dur * fps), hold = 15, total = body + hold;
+      try { await document.fonts.load('600 13px Manrope'); } catch (e) {}
+      var codec = null, cands = ['avc1.64002A', 'avc1.4D002A', 'avc1.42002A', 'avc1.640028', 'avc1.42E01F'];
+      for (var ci = 0; ci < cands.length && !codec; ci++) {
+        var sup = await VideoEncoder.isConfigSupported({ codec: cands[ci], width: w, height: h, bitrate: 10e6, framerate: fps });
+        if (sup && sup.supported) codec = cands[ci];
+      }
+      if (!codec) throw new Error('codec');
+      var off = document.createElement('canvas'); off.width = w; off.height = h;
+      var octx = off.getContext('2d');
+      var muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: w, height: h }, fastStart: 'in-memory' });
+      var encErr = null;
+      var enc = new VideoEncoder({ output: function (chunk, meta) { muxer.addVideoChunk(chunk, meta); }, error: function (e) { encErr = e; } });
+      enc.configure({ codec: codec, width: w, height: h, bitrate: hd ? 14e6 : 8e6, framerate: fps });
+      for (var i = 0; i < total; i++) {
+        if (encErr) throw encErr;
+        var q = Math.min(1, i / (body - 1));
+        draw(octx, w, h, q, false);
+        var vf = new VideoFrame(off, { timestamp: Math.round(i * 1e6 / fps), duration: Math.round(1e6 / fps) });
+        enc.encode(vf, { keyFrame: i % 60 === 0 }); vf.close();
+        while (enc.encodeQueueSize > 8) await new Promise(function (r) { setTimeout(r, 4); });
+        if (i % 4 === 0) { $('prog').style.width = Math.round(i / total * 100) + '%'; setStatus('Rendering ' + Math.round(i / total * 100) + '%'); await new Promise(function (r) { setTimeout(r, 0); }); }
+      }
+      await enc.flush(); if (encErr) throw encErr;
+      muxer.finalize();
+      $('prog').style.width = '100%'; setStatus('Almost done. Confirm the download.');
+      var blob = new Blob([muxer.target.buffer], { type: 'video/mp4' });
+      try {
+        await downloads.save({ filename: 'math-motion-' + w + 'x' + h + '.mp4', data: blob });
+        setStatus('Saved. ' + w + '×' + h + ', ' + S.dur + ' s.');
+      } catch (e) {
+        setStatus(e && e.code === 'declined' ? 'Download cancelled.' : 'The file could not be saved here (' + ((e && e.code) || 'error') + ').');
+      }
+    } catch (e) {
+      setStatus('Could not render the video in this browser. Try a shorter video or 720p.');
+    } finally {
+      exporting = false; $('dl').disabled = false; $('dltxt').textContent = 'Download MP4'; $('progwrap').hidden = true;
+      p = 0; playing = S.mode === 'eq' && !reduce; last = performance.now(); ui();
+    }
+  }
+  $('dl').addEventListener('click', exportMp4);
+
+  /* ---------- start ---------- */
+  addEq('x^2'); addEq('1 + 1/x^2');
+  renderEqs(); renderShapes(); renderTiming(); buildCamera(); resize(); ui(); syncPenUI(); syncViewUI();
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(stage); else window.addEventListener('resize', resize);
+  if (reduce) { p = 1; playing = false; ui(); }
+  requestAnimationFrame(function (t) { last = t; frame(t); });
+  window.__mm = { S: S, clean: clean, addShape: addShape, fitEllipse: fitEllipse, fitCircle: fitCircle, resample: resample, plen: plen };
+})();
+</script>
+
+</body>
+</html>
